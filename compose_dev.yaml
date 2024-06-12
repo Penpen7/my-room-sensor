@@ -1,0 +1,56 @@
+version: "3.8"
+services:
+  grafana:
+    image: grafana/grafana-enterprise:9.5.19-ubuntu
+    container_name: grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    ports:
+      - "3011:3000"
+    volumes:
+      - "grafana_storage:/var/lib/grafana"
+      - "./grafana/datasources:/etc/grafana/provisioning/datasources"
+      - "./grafana/dashboard-settings:/etc/grafana/provisioning/dashboards"
+      - "./grafana/dashboards:/var/lib/grafana/dashboards"
+    depends_on:
+      - "db"
+  db:
+    image: influxdb:2.7.6-alpine
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - "influxdb_storage:/var/lib/influxdb"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=db
+      - DOCKER_INFLUXDB_INIT_PASSWORD=12345678
+      - DOCKER_INFLUXDB_INIT_ORG=prg
+      - DOCKER_INFLUXDB_INIT_BUCKET=prg
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=token
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  sensor:
+    build:
+      context: ./sensor
+      dockerfile: Dockerfile
+      target: develop
+    volumes:
+      - ./sensor:/app
+      - /app/target
+    environment:
+      - ENV=local
+      - INFLUXDB_URL=http://db:8086
+      - INFLUXDB_TOKEN=token
+      - INFLUXDB_BUCKET=prg
+      - INFLUXDB_USERNAME=db
+      - INFLUXDB_PASSWORD=12345678
+    depends_on:
+      - "db"
+    tty: true
+volumes:
+  grafana_storage: {}
+  influxdb_storage: {}
